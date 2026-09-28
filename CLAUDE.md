@@ -72,6 +72,12 @@ container) on every push, and an unsigned simulator build of the app on `main` (
 minutes are expensive on a private repo). CI has no hymn files, so only the test-hymn and
 synthetic tests really run there; run the full suite locally with the hymns present.
 
+Screenshots in `docs/screenshots` come from `ios/scripts/screenshots.sh`: a debug-only
+screenshot mode (`ios/SingIt/App/ScreenshotMode.swift`, launch argument `-screenshot
+setup|singing|summary|range`) that opens a screen with the test hymn from the package's
+test fixtures (bundled into the app) and a simulated singer. Only the made-up test hymn
+may appear in anything published. `tools/make_icon.py` draws the app icon.
+
 ## Hymn data pipeline (`tools/hymnpdf`)
 
 - Source PDFs live in `hymns/pdf/NNNN-slug.pdf`, and their extracted JSON in

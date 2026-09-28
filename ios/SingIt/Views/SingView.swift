@@ -17,6 +17,8 @@ struct SingView: View {
     /// Practising one line over and over: its beats and words.
     var loop: (range: ClosedRange<Double>, text: String)?
     var musicMix: MusicMix = .full
+    /// A controller made elsewhere (screenshot mode); normally the view makes its own.
+    var prepared: SingController?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(VoiceProfile.self) private var voice
@@ -35,7 +37,9 @@ struct SingView: View {
             }
         }
         .onAppear {
-            if controller == nil {
+            if controller == nil, let prepared {
+                controller = prepared
+            } else if controller == nil {
                 controller = SingController(hymn: hymn, part: part, verse: verse, tolerance: tolerance,
                                             anyOctave: anyOctave, octaveShift: octaveShift, coachOctave: coachOctave,
                                             steadyTempo: steadyTempo,
@@ -96,7 +100,7 @@ struct SingView: View {
     private func header(_ c: SingController) -> some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(hymn.number). \(hymn.title)")
+                Text(verbatim: "\(hymn.number). \(hymn.title)")
                     .font(.headline)
                     .lineLimit(1)
                 Text(passLabel(c))

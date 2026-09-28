@@ -43,7 +43,7 @@ struct SummaryView: View {
                                     Button {
                                         practise(spot)
                                     } label: {
-                                        Label("Practise “\(spot.lineText)”", systemImage: "repeat")
+                                        Label("Practise “\(shortLine(spot.lineText))”", systemImage: "repeat")
                                             .font(.subheadline)
                                     }
                                     .buttonStyle(.bordered)
@@ -115,7 +115,7 @@ struct SummaryView: View {
                     }
                 }
             }
-            .navigationTitle("\(summary.hymnNumber). \(summary.title)")
+            .navigationTitle(Text(verbatim: "\(summary.hymnNumber). \(summary.title)"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -127,7 +127,13 @@ struct SummaryView: View {
 
     private func recurringTitle(_ spot: SessionSummary.RecurringSpot) -> String {
         let words = Array(Set(spot.lyrics)).sorted().prefix(3).map { "“\($0)”" }.joined(separator: ", ")
-        return "\(words) · \(spot.kind.capitalized) · \(spot.pitch)"
+        return "\(words) · \(spot.kind == "verse" ? "Verses" : spot.kind.capitalized) · \(spot.pitch)"
+    }
+
+    /// The opening words of a line, for a button.
+    private func shortLine(_ text: String) -> String {
+        let words = text.split(separator: " ")
+        return words.count <= 6 ? text : words.prefix(6).joined(separator: " ") + "…"
     }
 
     private func recurringDetail(_ spot: SessionSummary.RecurringSpot) -> String {

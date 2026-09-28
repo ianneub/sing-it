@@ -10,7 +10,7 @@ struct HymnListView: View {
             List(library.search(query)) { hymn in
                 NavigationLink(value: hymn.number) {
                     HStack(spacing: 12) {
-                        Text("\(hymn.number)")
+                        Text(verbatim: String(hymn.number))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                             .frame(minWidth: 36, alignment: .trailing)

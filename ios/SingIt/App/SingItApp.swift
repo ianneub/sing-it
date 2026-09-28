@@ -7,9 +7,19 @@ struct SingItApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if let screen = ScreenshotMode.screen {
+                ScreenshotRoot(screen: screen)
+            } else {
+                HymnListView()
+                    .environment(library)
+                    .environment(voice)
+            }
+            #else
             HymnListView()
                 .environment(library)
                 .environment(voice)
+            #endif
         }
     }
 }

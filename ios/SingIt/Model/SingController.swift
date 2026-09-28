@@ -209,6 +209,14 @@ final class SingController {
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
+    #if DEBUG
+    /// Screenshot mode: show the session's current state as if listening.
+    func showForScreenshot() {
+        refresh()
+        isListening = true
+    }
+    #endif
+
     private func refresh() {
         live = session.live
         // Practising a line: once the music passes its end, go back to two beats before it.

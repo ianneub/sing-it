@@ -29,6 +29,14 @@ final class HymnLibrary {
         }
     }
 
+    #if DEBUG
+    /// For screenshot mode: a library of just these hymns.
+    init(hymns: [Hymn], beatMaps: [Int: BeatMap]) {
+        self.hymns = hymns
+        self.beatMaps = beatMaps
+    }
+    #endif
+
     func hymn(number: Int) -> Hymn? {
         hymns.first { $0.number == number }
     }

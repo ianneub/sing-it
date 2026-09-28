@@ -7,7 +7,12 @@ import SwiftUI
 struct RangeCheckView: View {
     @Environment(VoiceProfile.self) private var voice
     @Environment(\.dismiss) private var dismiss
-    @State private var model = RangeCheckModel()
+    @State private var model: RangeCheckModel
+
+    /// `model` is for screenshot mode; normally the view makes its own.
+    init(model: RangeCheckModel? = nil) {
+        _model = State(initialValue: model ?? RangeCheckModel())
+    }
 
     var body: some View {
         List {
@@ -126,6 +131,14 @@ final class RangeCheckModel {
     func stop() {
         capture.stop()
     }
+
+    #if DEBUG
+    /// For screenshot mode: a finished check.
+    func preset(low: Double, high: Double) {
+        self.low = low
+        self.high = high
+    }
+    #endif
 }
 
 /// Pitch detection for the range check, fed from the audio queue.

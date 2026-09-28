@@ -1,4 +1,8 @@
+<img src="docs/icon.png" alt="Sing It app icon" width="96" align="right">
+
 # Sing It
+
+[![Tests](https://github.com/ianneub/sing-it/actions/workflows/tests.yml/badge.svg)](https://github.com/ianneub/sing-it/actions/workflows/tests.yml)
 
 An iPhone app that helps you sing hymns better. Pick a hymn and your part, and sing: Sing It
 shows the words and notes, listens through your AirPods or the phone's microphone, and shows
@@ -11,6 +15,16 @@ plays the hymn's accompaniment and knows exactly where you are.
 This is a personal, non-commercial project. It is **not affiliated with or endorsed by The
 Church of Jesus Christ of Latter-day Saints**. It works with hymn files you download
 yourself from the Church's website; none are included here (see [Hymn files](#hymn-files)).
+
+<p align="center">
+  <img src="docs/screenshots/singing.png" alt="Singing: the melody's notes with the sung pitch drawn over them, a tuning meter and the words" width="200">
+  <img src="docs/screenshots/summary.png" alt="Summary: score, a note missed in the same place every verse with a Practise button, and the octaves sung in" width="200">
+  <img src="docs/screenshots/setup.png" alt="Setup: the singer's range and the parts and octaves that fit it" width="200">
+  <img src="docs/screenshots/range.png" alt="Range check: lowest and highest comfortable notes" width="200">
+</p>
+
+<p align="center"><sub>Singing, the summary, part suggestions for your voice, and the range check. Shown with a
+made-up test hymn (an original tune with public-domain words), not a Church hymn.</sub></p>
 
 ## Features
 
@@ -109,6 +123,13 @@ You need a Mac with Xcode (iOS 17 or later on the phone) and [XcodeGen](https://
 To build on a Mac from a Linux machine over SSH, put `SINGIT_MAC=<ssh host>` in
 `ios/local.env` and use `ios/scripts/mac.sh build`, `device` (build and install on the
 phone plugged into the Mac) or `test`.
+
+## Screenshots and icon
+
+`ios/scripts/screenshots.sh` (on a Mac; from Linux, `ios/scripts/mac.sh ssh scripts/screenshots.sh`)
+retakes the screenshots in the simulator. It uses a debug-only screenshot mode that opens
+each screen with the made-up test hymn and a simulated singer. `tools/make_icon.py` draws the
+app icon.
 
 ## Tests
 

@@ -152,7 +152,7 @@ struct HymnSetupView: View {
                      + "Start when the introduction ends; Sing It waits for your first note.")
             }
         }
-        .navigationTitle("\(hymn.number). \(hymn.title)")
+        .navigationTitle(Text(verbatim: "\(hymn.number). \(hymn.title)"))
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $singing) {
             SingView(hymn: hymn, part: part, verse: verse, tolerance: tolerance,
