@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Swift / Xcode (the project is generated from ios/project.yml)
+ios/Packages/SingItCore/.build/
+.swiftpm/
+ios/SingIt.xcodeproj/
+ios/build/
+ios/SingIt/Info.plist
+
+# Personal settings: signing team, bundle ID, Mac host, notes for Claude
+ios/project.local.yml
+ios/local.env
+CLAUDE.local.md
+
+# Hymn material is copyrighted and never committed: each developer downloads the PDFs and
+# recordings themselves (see README). The folders stay so the app build finds them.
+hymns/pdf/*
+hymns/json/*
+hymns/beatmaps/*
+hymns/audio/*
+!hymns/*/.gitkeep
+/build/
+recordings/

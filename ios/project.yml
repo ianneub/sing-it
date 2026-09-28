@@ -1,0 +1,52 @@
+# XcodeGen spec. On a Mac:  brew install xcodegen && cd ios && xcodegen && open SingIt.xcodeproj
+# Your own signing team and bundle ID go in project.local.yml (not committed; see the README),
+# which includes this file:  xcodegen generate --spec project.local.yml
+name: SingIt
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  SingItCore:
+    path: Packages/SingItCore
+targets:
+  SingIt:
+    type: application
+    platform: iOS
+    sources:
+      - path: SingIt
+      # Hymn data from tools/hymnpdf, bundled as a folder named "json".
+      - path: ../hymns/json
+        type: folder
+        buildPhase: resources
+      # Beat maps of the accompaniment recordings from tools/beatmap.py, as "beatmaps".
+      - path: ../hymns/beatmaps
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: SingItCore
+    info:
+      path: SingIt/Info.plist
+      properties:
+        CFBundleDisplayName: Sing It
+        UILaunchScreen: {}
+        NSMicrophoneUsageDescription: Sing It listens to your singing to show how close you are to your part's notes, and records it so you can listen back.
+        UIBackgroundModes: [audio]
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.singit
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""

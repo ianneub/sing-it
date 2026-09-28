@@ -1,0 +1,57 @@
+name: Tests
+
+# Hymn files aren't in the repository, so tests that need them skip here; the converter
+# and app logic are covered by the rest and by the made-up test hymn.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  converter:
+    name: Converter (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+      - run: pip install -r tools/requirements.txt
+      - run: pytest -q
+
+  app-logic:
+    name: App logic (Swift)
+    runs-on: ubuntu-latest
+    container: swift:6.3
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --package-path ios/Packages/SingItCore
+
+  ios-build:
+    name: iPhone app build
+    # macOS minutes cost more, so build the app on main and on demand.
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode on the runner
+        run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec project.yml
+      - name: Build for the simulator (no signing)
+        run: |
+          xcodebuild -project SingIt.xcodeproj -scheme SingIt \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build
