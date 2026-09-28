@@ -98,7 +98,8 @@ own use:
    ```
 
    `--strict` fails on any warning. If you made beat maps with an older `beatmap.py`, run
-   it again: older maps started each verse up to 2 s before the music did. The converter has been checked against a development
+   it again: older maps started each verse up to 2 s before the music did, and ran notes on
+   through the organist's breaths. The converter has been checked against a development
    set of 20 hymns from the 1985 hymnbook; others may need fixes (`--dump` and `--overlay`
    help). Every hymn in `hymns/json` is built into the app.
 

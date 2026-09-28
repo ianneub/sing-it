@@ -190,12 +190,19 @@ may appear in anything published. `tools/make_icon.py` draws the app icon.
   all four parts in playing order (the ⌜ ⌝ introduction, then every pass of the form), by
   slope-constrained DTW (local tempo within 0.5–2×; free DTW races through one verse and
   dawdles in the next, because every verse has the same music). Three more things matter:
-  - Breaths: between passages the organist holds the last chord or stops briefly. The
-    score has a breath frame there that matches quiet audio (loudness from short windows:
-    the pause can be a quarter second), the path may wait on it or on the last chord (for
-    a small cost per frame, or it sat on 136's introduction for 17 s), and sounding notes
-    are penalised on near-silence (6's verses end on a D chord dying away, and the next
-    verse opens on D).
+  - Breaths: between passages the organist holds the last chord or stops briefly, and
+    at phrase ends inside them (after a fermata, before a melody rest, before the word
+    after punctuation in any verse) lets go for 0.1–1 s. The score has a breath frame at
+    each that matches quiet audio (loudness from short windows: the pause can be a quarter
+    second); the path may wait on it or on the chord before it (for a small cost per
+    frame, or it sat on 136's introduction for 17 s). Sounding notes are penalised on
+    near-silence (6's verses end on a D chord dying away, and the next verse opens on D);
+    rests match silence like breaths (204's introduction ends on one). No phrase breath
+    within two beats of a passage's ends: 116's "Come," let a verse start before the
+    pause. Where a breath takes real time, the map gets a point at its start just before
+    the next note, so the position reaches the note's end as the music stops and waits
+    there; without phrase breaths the silence was spread over the note, which then looked
+    held longer than the organ held it.
   - Onsets: a score note start costs extra where the audio has no attack (spectral flux).
     Chroma alone can't place beats inside one chord: 27's verse opens on repeated tonic
     notes, and was matched a second early at double speed.
@@ -208,8 +215,10 @@ may appear in anything published. `tools/make_icon.py` draws the app icon.
   printed verse count should give the lowest `alignmentCost` (all 18 recordings play
   exactly the printed verses, some at the slow end of the marked tempo). Where the music
   restarts after a silence, the pass start should be within ~0.1 s (all 107 in the 18
-  maps are within 0.14 s), and most mapped note starts should land within 80 ms of an
-  audio attack (60% overall, up from 25% before breaths and onsets). A singer's own
+  maps are within 0.14 s); every silence inside the singing should fall at a note's end
+  or in a rest (303 of 306; 48 fell mid-note before phrase breaths); and most mapped
+  note starts should land within 80 ms of an audio attack (64% overall, up from 25%
+  before breaths and onsets). A singer's own
   recording is independent evidence: with a good map their lag behind it is steady
   (0.12–0.24 s through a whole practice take of 27).
 - Ground truth for a real practice recording: find the recording's offset in the MP3 by

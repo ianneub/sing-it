@@ -112,20 +112,56 @@ def performance_segments(hymn: dict) -> list[tuple[str, int, float, float, float
     return segs
 
 
-def score_chroma(hymn: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+PUNCTUATION = ",.;:!?—–"
+
+
+def phrase_ends(hymn: dict) -> list[float]:
+    """Written beats where the organist may breathe inside a passage: after a note with a
+    fermata, before a rest in the melody, and before the syllable after punctuation in any
+    verse (the breath comes just before the next word)."""
+    ends = set()
+    for part in hymn["parts"].values():
+        ends |= {n["start"] + n["duration"] for n in part if n.get("fermata")}
+    melody = hymn["parts"]["soprano"]
+    ends |= {a["start"] + a["duration"] for a, b in zip(melody, melody[1:])
+             if a.get("midi") is not None and b.get("midi") is None}
+    for section in hymn["sections"]:
+        for line in section["lyrics"]:
+            syllables = line["syllables"]
+            for a, b in zip(syllables, syllables[1:]):
+                if a["text"].rstrip("\"'’”)").endswith(tuple(PUNCTUATION)):
+                    ends.add(b["start"])
+    return sorted(ends)
+
+
+def score_chroma(hymn: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Chroma per score frame, each frame's performance beat (-1 during the intro, NaN for a
-    breath), its passage (a breath belongs to none: -1), and whether a note starts in it.
-    A breath frame sits between passages; its chroma row is zero (the cost of matching it
+    breath), its stretch of steady tempo (a breath belongs to none: -1), whether a note
+    starts in it, and whether every part rests. A breath frame sits between passages and at
+    phrase ends inside them; its chroma row is zero (the cost of matching it, like a rest's,
     comes from loudness)."""
     notes = [n for part in ("soprano", "alto", "tenor", "bass") for n in hymn["parts"][part] if n.get("midi") is not None]
-    rows, beats, segment, onsets = [], [], [], []
+    ends = phrase_ends(hymn)
+    rows, beats, segment, onsets, silent = [], [], [], [], []
+    stretch = 0
+
+    def breathe() -> None:
+        nonlocal stretch
+        rows.append(np.zeros(12))
+        beats.append(np.nan)
+        segment.append(-1)
+        onsets.append(False)
+        silent.append(True)
+        stretch += 1
+
     for k, (kind, _, a, b, perf) in enumerate(performance_segments(hymn)):
         if k > 0:
-            rows.append(np.zeros(12))
-            beats.append(np.nan)
-            segment.append(-1)
-            onsets.append(False)
+            breathe()
         for w in np.arange(a, b, STEP):
+            # Not near a passage's ends, where the breath between passages serves (a comma
+            # after a verse's first word let the verse start before the pause).
+            if a + 2 < w < b - 2 and any(w - STEP / 2 < e <= w + STEP / 2 for e in ends):
+                breathe()
             onsets.append(any(w - 1e-6 <= n["start"] < w + STEP - 1e-6 for n in notes))
             v = np.zeros(12)
             for n in notes:
@@ -133,10 +169,11 @@ def score_chroma(hymn: dict) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.nda
                     v[n["midi"] % 12] += 1.5 if n in hymn["parts"]["bass"] else 1  # bass is strong on an organ
             rows.append(v)
             beats.append(-1 if kind == "intro" else perf + (w - a))
-            segment.append(k)
+            segment.append(stretch)
+            silent.append(not v.any())
     chroma = normalise(np.array(rows) + 0.05)
     chroma[np.array(segment) < 0] = 0
-    return chroma, np.array(beats), np.array(segment), np.array(onsets)
+    return chroma, np.array(beats), np.array(segment), np.array(onsets), np.array(silent)
 
 
 def dtw(cost: np.ndarray, wait: np.ndarray | None = None, wait_cost: np.ndarray | None = None) -> list[tuple[int, int]]:
@@ -219,19 +256,19 @@ def align(hymn: dict, audio_path: str) -> dict:
     # Trim leading and trailing silence.
     loud = np.where(rms > 0.05 * rms.max())[0]
     first, last = int(loud[0]), int(loud[-1]) + 1
-    sc, beats, segment, note_starts = score_chroma(hymn)
+    sc, beats, segment, note_starts, silent = score_chroma(hymn)
     cost = 1 - chroma[first:last] @ sc.T
     # Rhythm: a note starting in the score should meet an attack in the audio. Chroma alone
     # can't place beats inside one chord (a verse opening on repeated notes of the tonic
     # was matched at double speed, a second ahead of the music).
     attack, quiet = (d[first:last] for d in audio_detail(x, len(chroma)))
     cost[:, note_starts] += ONSET_WEIGHT * (1 - attack)[:, None]
-    # A breath matches quiet audio: free in silence, as dear as a wrong chord at full volume.
-    # A note doesn't match near-silence: a chord dying away at the end of a verse has the
-    # next verse's opening notes in it when the verse starts on the tonic too.
+    # A breath or a rest matches quiet audio: free in silence, as dear as a wrong chord at
+    # full volume. A note doesn't match near-silence: a chord dying away at the end of a
+    # verse has the next verse's opening notes in it when the verse starts on the tonic too.
     breath = segment < 0
-    cost[:, breath] = (quiet ** 2)[:, None]
-    cost[:, ~breath] += SILENCE_WEIGHT * (1 - quiet)[:, None]
+    cost[:, silent] = (quiet ** 2)[:, None]
+    cost[:, ~silent] += SILENCE_WEIGHT * (1 - quiet)[:, None]
     # Wait on a breath, or on a passage's last chord (held before the breath). Holding a
     # chord costs a little per frame, or the path can sit on an introduction's last chord
     # for many seconds (it sounds like the verse's first) and then race to catch up.
@@ -250,6 +287,19 @@ def align(hymn: dict, audio_path: str) -> dict:
     js = np.array(sorted(start_of))
     times = smooth(np.array([start_of[j] for j in js]), int(SMOOTH_BEATS / STEP), segment[js])
     points = [(round(float(t), 3), round(float(beats[j]), 3)) for t, j in zip(times, js)]
+    # Where the organist lets go and breathes (at least two quiet frames), the note ends
+    # then: the position reaches the end of the note as the music stops and waits there.
+    # Without this point the silence is spread over the note, which looks held too long.
+    held_frames: dict[int, list[int]] = {}
+    for i, j in path:
+        if breath[j]:
+            held_frames.setdefault(j, []).append(i)
+    for j, frames in held_frames.items():
+        after = beats[j + 1] if j + 1 < len(beats) else np.nan
+        if len(frames) >= 2 and after >= 0:
+            points.append((round((first + frames[0]) * HOP + N_FFT / 2 / SR, 3), round(float(after) - 0.01, 3)))
+    points.sort()
+    points = [(t, b) for k, (t, b) in enumerate(points) if k == 0 or (t > points[k - 1][0] and b >= points[k - 1][1])]
     intro = [t for t, b in points if b < 0]
     passes = [(t, b) for t, b in points if b >= 0]
     mean_cost = float(np.mean([cost[i, j] for i, j in path if not breath[j]]))
