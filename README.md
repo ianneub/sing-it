@@ -24,7 +24,7 @@ yourself from the Church's website; none are included here (see [Hymn files](#hy
 </p>
 
 <p align="center"><sub>Singing, the summary, part suggestions for your voice, and the range check. Shown with a
-made-up test hymn (an original tune with public-domain words), not a Church hymn.</sub></p>
+made-up test hymn (an original tune set to Alma 29:1–2), not a hymn from the hymnbook.</sub></p>
 
 ## Features
 
@@ -143,8 +143,8 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/src \
 
 GitHub Actions (`.github/workflows/tests.yml`) runs both on every push, and builds the
 iPhone app (unsigned) on `main`. Tests that need hymn files skip when they're missing. The rest run on a made-up test hymn
-(`ios/Packages/SingItCore/Tests/SingItCoreTests/Fixtures`: an original tune with public-domain
-words) and on simulated singers.
+(`ios/Packages/SingItCore/Tests/SingItCoreTests/Fixtures`: an original tune set to Alma 29:1–2
+from the Book of Mormon, whose 1830 text is public domain) and on simulated singers.
 
 ## License
 

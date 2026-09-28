@@ -591,19 +591,21 @@ final class TestHymnTests: XCTestCase {
         let hymn = try loadTestHymn()
         for part in Part.allCases {
             let p = Performance(hymn: hymn, part: part)
-            XCTAssertEqual(p.totalBeats, 64, "\(part)")
+            XCTAssertEqual(p.totalBeats, 144, "\(part)")
             for (a, b) in zip(p.notes, p.notes.dropFirst()) { XCTAssertEqual(a.end, b.start, accuracy: 1e-9) }
         }
         let p = Performance(hymn: hymn, part: .melody)
         XCTAssertEqual(p.passes.map(\.verse), [1, 2])
-        XCTAssertEqual(p.lines.count, 4)  // two printed systems, two passes
-        XCTAssertEqual(p.syllables[p.lines[2].syllables].first?.text, "Praise")
+        XCTAssertEqual(p.lines.count, 6)  // three printed systems, two passes
+        XCTAssertEqual(p.syllables[p.lines[3].syllables].first?.text, "Yea,")
         XCTAssertEqual(Performance(hymn: hymn, part: .anyPart).notes[0].targets, [67, 62, 59, 55])
     }
 
     func testFollowsAnUntrainedSinger() throws {
         let hymn = try loadTestHymn()
-        for (part, jitter, steady, limit) in [(Part.tenor, 0.08, true, 0.6), (.melody, 0.25, false, 1.2)] {
+        // Singing alone with uneven timing is looser: the test hymn's phrases end on five-beat
+        // notes, and a singer who stretches notes by up to 25% runs over a beat long there.
+        for (part, jitter, steady, limit) in [(Part.tenor, 0.08, true, 0.6), (.melody, 0.25, false, 1.5)] {
             let session = SingingSession(hymn: hymn, part: part, steadyTempo: steady)
             var errs: [Double] = []
             for f in SloppySinger(bpm: 90, tempoJitter: jitter, seed: 3).frames(Performance(hymn: hymn, part: part)) {
@@ -640,8 +642,8 @@ final class TestHymnTests: XCTestCase {
         let session = SingingSession(hymn: hymn, part: .melody, octaveShift: -1, coachOctave: true)
         var slips = 0
         for f in singFrames(Performance(hymn: hymn, part: .melody, octaveShift: -1), bpm: 90) {
-            let low = f.beat.truncatingRemainder(dividingBy: 32) >= 16 && f.beat.truncatingRemainder(dividingBy: 32) < 24
-            // (the third line of each verse two octaves down)
+            let inVerse = f.beat.truncatingRemainder(dividingBy: 72)
+            let low = inVerse >= 24 && inVerse < 40  // the third phrase of each verse two octaves down
             let pitch = f.pitch.map { low ? PitchEstimate(midi: $0.midi - 12, clarity: $0.clarity) : $0 }
             session.process(pitch: pitch, dt: f.dt)
             if session.live.hint == .octaveSlip { slips += 1 }
