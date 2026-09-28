@@ -257,9 +257,21 @@ may appear in anything published. `tools/make_icon.py` draws the app icon.
     the one whose evidence has been best over ~4 s (switching only on a clear margin),
     and pulls the others to the leader's position so a switch never moves the position.
   - Practice mode: `BeatMap` converts recording time ↔ performance beat (negative during
-    the introduction). The controller calls `SingingSession.setMusicClock(beat:rate:)`
-    before each audio block; the session then takes the position from the music instead
-    of the follower (hint `.intro` before beat 0). It also measures how far behind the
+    the introduction). The controller calls `SingingSession.setMusicClock(time:beatMap:)`
+    before each audio block (the recording time the singer heard); the session then reads
+    every frame's beat from the map instead of the follower (hint `.intro` before beat 0),
+    and applies the singer's lag in seconds. Extrapolating at a tempo (the older
+    `setMusicClock(beat:rate:)`, still used by tests and the replay tool) is wrong at
+    breaths, where the tempo drops to zero and back.
+  - The note roll and the words don't use the session's position while the music plays:
+    `SingController.displayPosition()` reads the map at the player's position now (moved
+    on from its last render by host time) less the output latency, i.e. what's in the
+    singer's ears, and `NoteRollView` redraws it every screen frame (`TimelineView`). A
+    screen recording of the old roll, timed against the accompaniment in its own audio,
+    showed it frozen in 62% of frames and jumping up to 0.2 beats (it moved only when an
+    audio block was processed), and 0.4 s behind the music (it was shifted by the
+    singer's lag and the microphone's latency). The live pitch dot is drawn at the
+    singer's position (the music less `musicLag`), where the trace ends. It also measures how far behind the
     music the singer sings (`musicLag`: the lag that best lines up the last 30 s of
     singing with the notes by name) and scores against that; ~0.3–0.5 s is typical.
   - Octaves: `Performance(octaveShift:)` moves a part by whole octaves (a man singing the

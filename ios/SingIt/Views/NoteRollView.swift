@@ -7,14 +7,27 @@ struct NoteRollView: View {
     let controller: SingController
 
     var body: some View {
+        // Redrawn every screen frame while listening, at the music's position right then:
+        // updating only when the controller refreshes made the roll stutter.
+        TimelineView(.animation(paused: !controller.isListening)) { _ in
+            roll(at: controller.displayPosition(), singer: controller.displayPosition(lag: controller.session.musicLag))
+        }
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityLabel("Notes for your part, with your singing drawn as dots")
+    }
+
+    /// The roll with the playhead at `position` (the music) and the current pitch at
+    /// `singer` (where the singer is, a little behind).
+    private func roll(at position: Double, singer: Double) -> some View {
         let live = controller.live
         let performance = controller.performance
-        let from = live.position - controller.lookBehind
-        let to = live.position + controller.lookAhead
+        let from = position - controller.lookBehind
+        let to = position + controller.lookAhead
         let range = performance.pitchRange
         let lo = Double(range.lowerBound - 2), hi = Double(range.upperBound + 2)
 
-        Canvas { context, size in
+        return Canvas { context, size in
             let x: (Double) -> CGFloat = { beat in CGFloat((beat - from) / (to - from)) * size.width }
             let y: (Double) -> CGFloat = { midi in size.height * CGFloat(1 - (midi - lo) / (hi - lo)) }
             let row: CGFloat = size.height / CGFloat(hi - lo)
@@ -78,23 +91,20 @@ struct NoteRollView: View {
                              with: .color(color))
             }
 
-            // Playhead and the current pitch.
-            let headX = x(live.position)
+            // Playhead (the music) and the current pitch (where the singer is).
+            let headX = x(position)
             var head = Path()
             head.move(to: CGPoint(x: headX, y: 0))
             head.addLine(to: CGPoint(x: headX, y: size.height))
             context.stroke(head, with: .color(.accentColor.opacity(0.6)), lineWidth: 2)
             if let midi = live.sungMidiNearTarget, live.started {
-                let point = CGPoint(x: headX, y: y(min(max(midi, lo), hi)))
+                let point = CGPoint(x: x(singer), y: y(min(max(midi, lo), hi)))
                 let session = controller.session
                 let inTune = live.comparison.map { (session.anyOctave || !$0.octaveOff) && abs($0.cents) <= session.tolerance }
                 context.fill(Path(ellipseIn: CGRect(x: point.x - 7, y: point.y - 7, width: 14, height: 14)),
                              with: .color(inTune == true ? .green : .orange))
             }
         }
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .accessibilityLabel("Notes for your part, with your singing drawn as dots")
     }
 
     /// Sung notes turn green/yellow/red by accuracy; upcoming notes are blue.

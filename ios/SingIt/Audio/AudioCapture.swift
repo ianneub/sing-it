@@ -137,6 +137,18 @@ final class AudioCapture {
         return musicSegmentStart + Double(playerTime.sampleTime) / playerTime.sampleRate
     }
 
+    /// Where the music is at this moment (seconds), for drawing: the player's last render
+    /// moved on by the time since, so it advances smoothly between render cycles.
+    var musicTimeNow: Double? {
+        guard music != nil, let nodeTime = player.lastRenderTime, nodeTime.isHostTimeValid,
+              let playerTime = player.playerTime(forNodeTime: nodeTime) else { return nil }
+        let since = AVAudioTime.seconds(forHostTime: mach_absolute_time()) - AVAudioTime.seconds(forHostTime: nodeTime.hostTime)
+        return musicSegmentStart + Double(playerTime.sampleTime) / playerTime.sampleRate + min(max(since, 0), 0.25)
+    }
+
+    /// Seconds from the player to the singer's ears (large over Bluetooth).
+    var outputLatency: Double { AVAudioSession.sharedInstance().outputLatency }
+
     /// Jump the music to `seconds` without stopping the microphone.
     func seekMusic(to seconds: Double) {
         guard music != nil, isRunning else { return }

@@ -587,6 +587,43 @@ final class PartSynthTests: XCTestCase {
 /// The app's core behaviour on the made-up test hymn, so it's tested without any of the
 /// Church's files. (The tests above cover the same ground on real hymns when present.)
 final class TestHymnTests: XCTestCase {
+    /// Practice mode reads each frame's beat from the beat map. Through an organist's breath
+    /// (the map stops for a second, then goes on) the position must never step back:
+    /// extrapolating at a tempo overshot into the breath and was pulled back every block,
+    /// which made the note roll shake.
+    func testMusicClockFollowsTheMapThroughABreath() throws {
+        let hymn = try loadTestHymn()
+        // 1.5 beats a second, with a one-second breath at beat 12 (the end of a phrase).
+        var beats: [[Double]] = []
+        var t = 2.0, beat = 0.0
+        while beat <= 40 {
+            beats.append([t, beat])
+            t += 0.125 / 1.5
+            if abs(beat - 11.875) < 1e-9 { t += 1 }
+            beat += 0.125
+        }
+        let json: [String: Any] = ["url": "https://example.com/x.mp3", "duration": 40, "singingStart": 2.0, "beats": beats]
+        let map = try BeatMap.decode(from: JSONSerialization.data(withJSONObject: json))
+        let session = SingingSession(hymn: hymn, part: .melody, octaveShift: -1)
+        let block = 1024, rate = 16_000.0
+        var time = 2.0, last = -Double.infinity
+        var positions: [(time: Double, beat: Double)] = []
+        while time < 16 {
+            session.setMusicClock(time: time, beatMap: map)
+            session.process([Float](repeating: 0, count: block))
+            time += Double(block) / rate
+            let position = session.live.position
+            XCTAssertGreaterThanOrEqual(position, last - 1e-9, "stepped back at \(time) s")
+            last = position
+            positions.append((time, position))
+        }
+        // It sits at the end of the phrase through the breath, and matches the map.
+        let inBreath = positions.filter { $0.time > 10.3 && $0.time < 10.9 }.map(\.beat)
+        XCTAssertFalse(inBreath.isEmpty)
+        for b in inBreath { XCTAssertEqual(b, 12, accuracy: 0.1) }
+        for p in positions where p.time > 3 { XCTAssertEqual(p.beat, map.beat(atTime: p.time), accuracy: 0.1) }
+    }
+
     /// Scooping into every note from a semitone and a half flat and settling a little
     /// sharp: the meter must never point the other way from the hint.
     func testMeterAgreesWithHint() throws {

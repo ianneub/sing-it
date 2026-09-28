@@ -66,8 +66,14 @@ public final class SingingSession: @unchecked Sendable {
     private var buffer: [Float] = []
     /// Index (since the session began) of `buffer[0]`.
     private var consumed = 0
-    /// When the app plays the accompaniment, the beat of a given sample is known exactly.
-    private var musicClock: (sample: Int, beat: Double, rate: Double)?
+    /// When the app plays the accompaniment, the beat of a given sample is known exactly:
+    /// `beatAt(seconds)` is the beat the singer heard that many seconds after `sample`.
+    private struct MusicClock {
+        let sample: Int
+        let rate: Double
+        let beatAt: @Sendable (Double) -> Double
+    }
+    private var musicClock: MusicClock?
     /// The known beat of the latest frame, when the position comes from the music.
     private var musicBeat: Double?
     private var followers: [Part: ScoreFollower]
@@ -94,7 +100,8 @@ public final class SingingSession: @unchecked Sendable {
     /// Practice mode: how far behind the music the singer sings (seconds), measured from
     /// recent singing, and the samples it's measured from.
     public private(set) var musicLag = 0.0
-    private var lagSamples: [(beat: Double, midi: Double)] = []
+    /// Each sung frame's beat as a function of the lag, and its pitch.
+    private var lagSamples: [(beatAt: @Sendable (Double) -> Double, midi: Double)] = []
     private var framesSinceLagCheck = 0
     private let lock = NSLock()
 
@@ -154,16 +161,30 @@ public final class SingingSession: @unchecked Sendable {
     /// captured while the music played `beat`, moving at `rate` beats per second. Call it
     /// before each block; the position then comes from the music instead of the follower.
     public func setMusicClock(beat: Double, rate: Double) {
-        lock.withLock { musicClock = (consumed + buffer.count, beat, rate) }
+        lock.withLock { musicClock = MusicClock(sample: consumed + buffer.count, rate: rate, beatAt: { beat + $0 * rate }) }
+    }
+
+    /// The same, from the accompaniment's beat map: the next sample was captured while the
+    /// singer heard the recording at `time` seconds. Beats (and the singer's lag behind the
+    /// music) are read from the map, not extrapolated at a tempo: at a breath or a held
+    /// chord the tempo changes abruptly, and extrapolating overshot and pulled back.
+    public func setMusicClock(time: Double, beatMap: BeatMap) {
+        let rate = (beatMap.beat(atTime: time + 0.25) - beatMap.beat(atTime: time - 0.25)) * 2
+        lock.withLock {
+            musicClock = MusicClock(sample: consumed + buffer.count, rate: rate,
+                                    beatAt: { beatMap.beat(atTime: time + $0) })
+        }
     }
 
     /// Feed mono samples at `sampleRate`, any block size.
     public func process(_ samples: [Float]) {
         buffer += samples
         while buffer.count >= frameLength {
-            // With the music clock, the beat at the middle of this frame.
-            let known = lock.withLock { musicClock }.map { clock in
-                clock.beat + Double(consumed + frameLength / 2 - clock.sample) / sampleRate * clock.rate
+            // With the music clock, the beat at the middle of this frame (as a function of
+            // the lag: the beat the singer heard that long before).
+            let beatAt = lock.withLock { musicClock }.map { clock -> @Sendable (Double) -> Double in
+                let offset = Double(consumed + frameLength / 2 - clock.sample) / sampleRate
+                return { lag in clock.beatAt(offset - lag) }
             }
             let frame = Array(buffer[0..<frameLength])
             let pitch = detector.estimate(frame)
@@ -171,7 +192,7 @@ public final class SingingSession: @unchecked Sendable {
             var energy: Float = 0
             for x in frame[(frameLength - hop)...] { energy += x * x }
             let level = 10 * log10(Double(energy / Float(hop)) + 1e-12)
-            process(pitch: pitch, dt: Double(hop) / sampleRate, level: level, knownBeat: known)
+            step(pitch: pitch, dt: Double(hop) / sampleRate, level: level, beatAt: beatAt)
             buffer.removeFirst(hop)
             consumed += hop
         }
@@ -192,17 +213,25 @@ public final class SingingSession: @unchecked Sendable {
     /// `level` the loudness in dB (optional; it sharpens syllable detection).
     /// `knownBeat`: the position when it comes from the app's accompaniment.
     public func process(pitch: PitchEstimate?, dt: Double, level: Double? = nil, knownBeat: Double? = nil) {
+        let rate = lock.withLock { musicClock?.rate } ?? 0
+        step(pitch: pitch, dt: dt, level: level, beatAt: knownBeat.map { beat -> @Sendable (Double) -> Double in { lag in beat - lag * rate } })
+    }
+
+    /// `beatAt(lag)`: with the music playing, the beat the singer heard `lag` seconds
+    /// before this frame.
+    private func step(pitch: PitchEstimate?, dt: Double, level: Double?, beatAt: (@Sendable (Double) -> Double)?) {
         lock.lock()
         defer { lock.unlock() }
+        let knownBeat = beatAt?(0)
         lastPitch = pitch
         musicBeat = knownBeat
         let onset = onsets.step(voiced: pitch != nil, level: level, dt: dt)
         for follower in followers.values { follower.update(dt: dt, pitch: pitch, onset: onset) }
         if autoDetecting { decidePart() }
         if chordPerformance != nil { pickLeader() }
-        if let knownBeat {
-            if let pitch, knownBeat >= 0 { noteLag(beat: knownBeat, midi: pitch.midi) }
-            shown = knownBeat - musicLag * (musicClock?.rate ?? 0)
+        if let beatAt, let knownBeat {
+            if let pitch, knownBeat >= 0 { noteLag(beatAt: beatAt, midi: pitch.midi) }
+            shown = beatAt(musicLag)
         } else {
             glide(dt: dt)
         }
@@ -237,17 +266,17 @@ public final class SingingSession: @unchecked Sendable {
     /// Practice mode: people sing a little behind what they hear, and the latency iOS
     /// reports isn't exact. Every two seconds, find the lag (-0.2 to 0.8 s) that best lines
     /// the last 30 s of singing up with the notes, by note name, and ease toward it.
-    private func noteLag(beat: Double, midi: Double) {
-        lagSamples.append((beat, midi))
+    private func noteLag(beatAt: @escaping @Sendable (Double) -> Double, midi: Double) {
+        lagSamples.append((beatAt, midi))
         if lagSamples.count > 1500 { lagSamples.removeFirst(lagSamples.count - 1500) }
         framesSinceLagCheck += 1
-        guard framesSinceLagCheck >= 100, lagSamples.count >= 300, let rate = musicClock?.rate else { return }
+        guard framesSinceLagCheck >= 100, lagSamples.count >= 300 else { return }
         framesSinceLagCheck = 0
         let performance = shownPerformance
         func matchRate(_ lag: Double) -> Double {
             var hits = 0, total = 0
             for sample in lagSamples {
-                guard let i = performance.noteIndex(at: sample.beat - lag * rate), !performance.notes[i].isRest else { continue }
+                guard let i = performance.noteIndex(at: sample.beatAt(lag)), !performance.notes[i].isRest else { continue }
                 total += 1
                 let off = performance.notes[i].targets.map { t -> Double in
                     let d = sample.midi - Double(t)

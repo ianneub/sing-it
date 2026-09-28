@@ -70,10 +70,7 @@ final class SingController {
         self.live = session.live
         self.performance = session.performance
         capture.onSamples = { [session, beatMap] samples, heard in
-            if let beatMap, let heard {
-                let beat = beatMap.beat(atTime: heard)
-                session.setMusicClock(beat: beat, rate: beatMap.beat(atTime: heard + 1) - beat)
-            }
+            if let beatMap, let heard { session.setMusicClock(time: heard, beatMap: beatMap) }
             session.process(samples)
         }
         capture.onMusicFinished = { [weak self] in
@@ -238,8 +235,23 @@ final class SingController {
     }
     #endif
 
+    /// The beat to draw: with the accompaniment, where the music is in the singer's ears,
+    /// read from the beat map at this moment (the note roll asks every screen frame, so it
+    /// scrolls smoothly), `lag` seconds earlier for where the singer is. Otherwise, and
+    /// while paused, the session's position.
+    func displayPosition(lag: Double = 0) -> Double {
+        if let beatMap, isListening, let now = capture.musicTimeNow {
+            return beatMap.beat(atTime: now - capture.outputLatency - lag)
+        }
+        return live.position
+    }
+
+    /// `displayPosition()` as of the last refresh, for the words.
+    private(set) var displayedBeat = 0.0
+
     private func refresh() {
         live = session.live
+        displayedBeat = displayPosition()
         // Practising a line: once the music passes its end, go back to two beats before it.
         // My part only: the accompaniment for the introduction or lead-in, then just the line.
         if musicMix == .partOnly, let position = capture.musicPosition {

@@ -83,7 +83,7 @@ struct SingView: View {
             NoteRollView(controller: c)
                 .frame(maxHeight: .infinity)
             TuningMeterView(live: c.live, tolerance: tolerance)
-            LyricsView(performance: c.performance, position: c.live.position) { line in
+            LyricsView(performance: c.performance, position: c.displayedBeat) { line in
                 c.jump(toLine: line)
             }
             if let message = c.message {
