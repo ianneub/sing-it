@@ -210,6 +210,27 @@ final class SingController {
     }
 
     #if DEBUG
+    private var demoTask: Task<Void, Never>?
+
+    /// Screenshot mode's demo: advance through `from...to` beats in real time, handing each
+    /// stretch to `sing` to feed the session, and refresh the screen as when listening.
+    func runDemo(from start: Double, to end: Double, rate: Double, sing: @escaping (Double, Double) -> Void) {
+        isListening = true
+        startRefreshing()
+        demoTask = Task { [weak self] in
+            let clock = ContinuousClock(), began = clock.now
+            var beat = start
+            while beat < end, !Task.isCancelled, self != nil {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+                let elapsed = clock.now - began
+                let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+                let next = min(end, start + seconds * rate)
+                sing(beat, next)
+                beat = next
+            }
+        }
+    }
+
     /// Screenshot mode: show the session's current state as if listening.
     func showForScreenshot() {
         refresh()

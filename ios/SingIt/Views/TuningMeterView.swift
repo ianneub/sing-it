@@ -25,7 +25,6 @@ struct TuningMeterView: View {
             meter
                 .frame(height: 22)
         }
-        .animation(.easeOut(duration: 0.1), value: live.comparison?.cents)
     }
 
     private var meter: some View {
@@ -41,10 +40,12 @@ struct TuningMeterView: View {
                 Rectangle().fill(.secondary).frame(width: 1).offset(x: w / 2)
                 if let c = live.comparison, live.started, live.hint != .rest {
                     let clamped = min(max(c.cents, -span), span)
+                    // Only the dot glides; animating the whole view cross-faded the hint text.
                     Circle()
                         .fill(hintColor)
                         .frame(width: 18, height: 18)
                         .offset(x: w / 2 + CGFloat(clamped / span) * w / 2 - 9)
+                        .animation(.easeOut(duration: 0.1), value: clamped)
                 }
             }
             .overlay(alignment: .leading) { Text("♭").font(.caption).padding(.leading, 6).foregroundStyle(.secondary) }

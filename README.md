@@ -8,6 +8,10 @@ An iPhone app that helps you sing hymns better. Pick a hymn and your part, and s
 shows the words and notes, listens through your AirPods or the phone's microphone, and shows
 in real time how close you are to your note, whether you're sharp or flat, and your score.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="Sing It following a simulated singer through a line of the test hymn: the sung pitch drawn over the notes, the tuning meter and the highlighted words" width="300">
+</p>
+
 It's built for congregational hymn singing: it follows where you are in the hymn from your
 own voice (so it works while the organ and congregation are going), and in practice mode it
 plays the hymn's accompaniment and knows exactly where you are.
@@ -127,7 +131,9 @@ phone plugged into the Mac) or `test`.
 ## Screenshots and icon
 
 `ios/scripts/screenshots.sh` (on a Mac; from Linux, `ios/scripts/mac.sh ssh scripts/screenshots.sh`)
-retakes the screenshots in the simulator. It uses a debug-only screenshot mode that opens
+retakes the screenshots in the simulator and records the demo video, which becomes the GIF
+above with `ffmpeg -ss 0.5 -i demo.mp4 -vf "fps=12,scale=360:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=96:stats_mode=diff[p];[s1][p]paletteuse=dither=none:diff_mode=rectangle" docs/demo.gif`.
+It uses a debug-only screenshot mode that opens
 each screen with the made-up test hymn and a simulated singer. `tools/make_icon.py` draws the
 app icon.
 

@@ -4,7 +4,8 @@ import SwiftUI
 
 /// Debug builds only: launched with `-screenshot <screen>`, the app opens one screen with
 /// the made-up test hymn and a simulated singer, for the README's screenshots (see
-/// ios/scripts/screenshots.sh). Screens: setup, singing, summary, range.
+/// ios/scripts/screenshots.sh). Screens: setup, singing, summary, range, and demo (the
+/// singing screen in motion, for the README's animation).
 @MainActor
 enum ScreenshotMode {
     static var screen: String? {
@@ -44,10 +45,10 @@ enum ScreenshotMode {
     /// a little vibrato and drift, a breath at the end of each note, the same slip in the
     /// same place every verse (the third note of the second phrase, three half steps
     /// sharp), and the third phrase of verse 2 two octaves down. (A verse is 72 beats.)
-    static func sing(into session: SingingSession, until endBeat: Double) {
+    static func sing(into session: SingingSession, from startBeat: Double = 0, until endBeat: Double) {
         let performance = Performance(hymn: hymn, part: .melody, octaveShift: -1)
         let dt = 0.02, rate = beatMap.beat(atTime: 10) - beatMap.beat(atTime: 9)
-        var beat = 0.0, t = 0.0
+        var beat = startBeat, t = startBeat / rate
         while beat < endBeat, let index = performance.noteIndex(at: beat) {
             let note = performance.notes[index]
             var pitch: PitchEstimate?
@@ -92,6 +93,11 @@ struct ScreenshotRoot: View {
             SingView(hymn: ScreenshotMode.hymn, part: .melody, verse: 1, tolerance: 50, anyOctave: true,
                      octaveShift: -1, coachOctave: true, steadyTempo: true, beatMap: ScreenshotMode.beatMap,
                      voiceProcessing: false, musicMix: .withPart, prepared: prepared(controller))
+        case "demo":
+            let controller = ScreenshotMode.controller()
+            SingView(hymn: ScreenshotMode.hymn, part: .melody, verse: 1, tolerance: 50, anyOctave: true,
+                     octaveShift: -1, coachOctave: true, steadyTempo: true, beatMap: ScreenshotMode.beatMap,
+                     voiceProcessing: false, musicMix: .withPart, prepared: demo(controller))
         case "summary":
             SummaryView(summary: finishedSummary(), practise: { _ in })
         case "range":
@@ -111,6 +117,16 @@ struct ScreenshotRoot: View {
     private func prepared(_ controller: SingController) -> SingController {
         ScreenshotMode.sing(into: controller.session, until: 87.6)
         controller.showForScreenshot()
+        return controller
+    }
+
+    /// Sings the first few beats straight away, then carries on in real time through the
+    /// second phrase and its habitual slip.
+    private func demo(_ controller: SingController) -> SingController {
+        ScreenshotMode.sing(into: controller.session, until: 6)
+        controller.runDemo(from: 6, to: 30, rate: 1.5) { a, b in
+            ScreenshotMode.sing(into: controller.session, from: a, until: b)
+        }
         return controller
     }
 

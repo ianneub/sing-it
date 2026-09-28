@@ -74,8 +74,10 @@ synthetic tests really run there; run the full suite locally with the hymns pres
 
 Screenshots in `docs/screenshots` come from `ios/scripts/screenshots.sh`: a debug-only
 screenshot mode (`ios/SingIt/App/ScreenshotMode.swift`, launch argument `-screenshot
-setup|singing|summary|range`) that opens a screen with the test hymn from the package's
-test fixtures (bundled into the app) and a simulated singer. Only the made-up test hymn
+setup|singing|summary|range|demo`) that opens a screen with the test hymn from the package's
+test fixtures (bundled into the app) and a simulated singer. `demo` sings in real time
+(`SingController.runDemo`) and the script records it to `build/screenshots/demo.mp4`, the
+source of `docs/demo.gif` (ffmpeg command in the README). Only the made-up test hymn
 may appear in anything published. `tools/make_icon.py` draws the app icon.
 
 ## Hymn data pipeline (`tools/hymnpdf`)
