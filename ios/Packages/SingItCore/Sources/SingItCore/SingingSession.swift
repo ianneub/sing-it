@@ -26,6 +26,10 @@ public struct LiveState: Sendable {
     public var sungMidiNearTarget: Double?
     public var noteIndex: Int?
     public var comparison: PitchComparison?
+    /// How far off the singer is on this note, in cents, averaged over the last few frames:
+    /// what the hint is based on, so a meter showing it always agrees with the hint (the
+    /// latest frame alone swings through every scoop and glide).
+    public var meterCents: Double?
     public var hint: PitchHint
     public var score: Double
     public var streak: Int
@@ -382,6 +386,7 @@ public final class SingingSession: @unchecked Sendable {
             comparison = PitchComparison(sungMidi: pitch.midi, targets: note.targets, anyOctave: anyOctave)
         }
         let hint: PitchHint
+        var meterCents = comparison?.cents
         if !isSinging(follower) {
             hint = musicBeat != nil ? .intro : .waiting
         } else if note?.isRest ?? true {
@@ -395,6 +400,7 @@ public final class SingingSession: @unchecked Sendable {
                 // Average the last few frames so the hint doesn't flicker.
                 let recent = recentNote == index && !recentCents.isEmpty ? recentCents : [comparison.cents]
                 let mean = recent.reduce(0, +) / Double(recent.count)
+                meterCents = mean
                 hint = mean > tolerance * 0.5 ? .lower : mean < -tolerance * 0.5 ? .higher : .onPitch
             }
         } else {
@@ -406,7 +412,7 @@ public final class SingingSession: @unchecked Sendable {
                          sungMidiNearTarget: lastPitch.map { p in
                              comparison.map { anyOctave ? p.midi - Double(12 * $0.octaves) : p.midi } ?? p.midi
                          },
-                         noteIndex: index, comparison: comparison, hint: hint,
+                         noteIndex: index, comparison: comparison, meterCents: meterCents, hint: hint,
                          score: keeper.score(in: performance), streak: keeper.streak,
                          scoredNotes: keeper.scoredNotes)
     }

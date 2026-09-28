@@ -6,6 +6,7 @@ import SingItCore
 //
 //   singit-replay AUDIO.f32 HYMN.json PART [VERSE] [--every SECONDS] [--alone] [--onsets] [--csv]
 //                 [--beatmap MAP.json] [--octave N] [--exact]
+//   singit-replay AUDIO.f32 --pitches    (t,midi,clarity for every 20 ms frame; midi empty when unvoiced)
 // --beatmap replays a practice session: the recording started with the music, so its
 // clock gives the music's position. --octave N sings the part N octaves from written;
 // --exact holds the singer to it (otherwise any octave counts).
@@ -15,6 +16,20 @@ import SingItCore
 // PART is soprano, alto, tenor, bass or auto.
 
 let args = CommandLine.arguments
+if args.count == 3, args[2] == "--pitches" {
+    // Just the detected pitch of every frame, for studying how someone sings.
+    let audio = try Data(contentsOf: URL(fileURLWithPath: args[1]))
+    let samples = audio.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+    let detector = PitchDetector(sampleRate: 16_000)
+    var start = 0
+    while start + 1024 <= samples.count {
+        let pitch = detector.estimate(Array(samples[start..<start + 1024]))
+        print(String(format: "%.2f,", Double(start + 512) / 16_000)
+              + (pitch.map { String(format: "%.3f,%.2f", $0.midi, $0.clarity) } ?? ","))
+        start += 320
+    }
+    exit(0)
+}
 guard args.count >= 4 else {
     print("usage: singit-replay AUDIO.f32 HYMN.json PART [VERSE] [--every SECONDS]")
     exit(2)

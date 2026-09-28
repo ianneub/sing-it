@@ -5,7 +5,13 @@
 cd "$(dirname "$0")/.." || exit 1
 export PATH=/opt/homebrew/bin:$PATH
 mkdir -p build
-device=${SINGIT_DEVICE:-$(xcrun devicectl list devices 2>/dev/null | awk '/physical/ && /connected/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) {print $i; exit}}')}
+# A phone on the cable ("connected"), else one paired over Wi-Fi ("available").
+find_device() {
+    xcrun devicectl list devices 2>/dev/null | awk -v state="$1" '/physical/ && $0 ~ state {
+        for (i = 1; i <= NF; i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) { print $i; exit } }'
+}
+device=${SINGIT_DEVICE:-$(find_device connected)}
+device=${device:-$(find_device available)}
 {
     echo "device: ${device:-none found}"
     set -o pipefail

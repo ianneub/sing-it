@@ -587,6 +587,34 @@ final class PartSynthTests: XCTestCase {
 /// The app's core behaviour on the made-up test hymn, so it's tested without any of the
 /// Church's files. (The tests above cover the same ground on real hymns when present.)
 final class TestHymnTests: XCTestCase {
+    /// Scooping into every note from a semitone and a half flat and settling a little
+    /// sharp: the meter must never point the other way from the hint.
+    func testMeterAgreesWithHint() throws {
+        let hymn = try loadTestHymn()
+        let session = SingingSession(hymn: hymn, part: .melody, octaveShift: -1)
+        let performance = session.performance
+        var beat = 0.0, checked = 0
+        while beat < 72, let index = performance.noteIndex(at: beat) {
+            let note = performance.notes[index]
+            let into = (beat - note.start) / 1.5
+            let pitch = note.midi.map { PitchEstimate(midi: Double($0) + 0.4 - 1.9 * exp(-into / 0.15), clarity: 0.9) }
+            session.setMusicClock(beat: beat, rate: 1.5)
+            session.process(pitch: pitch, dt: 0.02, knownBeat: beat)
+            let live = session.live
+            if let cents = live.meterCents {
+                checked += 1
+                switch live.hint {
+                case .higher: XCTAssertLessThan(cents, 0, "beat \(beat)")
+                case .lower: XCTAssertGreaterThan(cents, 0, "beat \(beat)")
+                case .onPitch: XCTAssertLessThanOrEqual(abs(cents), 25, "beat \(beat)")
+                default: break
+                }
+            }
+            beat += 0.03
+        }
+        XCTAssertGreaterThan(checked, 1000)
+    }
+
     func testDecodesAndLaysOutEveryPart() throws {
         let hymn = try loadTestHymn()
         for part in Part.allCases {

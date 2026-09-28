@@ -53,7 +53,7 @@ XcodeGen via Homebrew in /opt/homebrew/bin). From Linux:
 
 ```bash
 ios/scripts/mac.sh build    # rsync the repo to ~/Code/sing-it on the Mac, xcodegen, simulator build
-ios/scripts/mac.sh device   # build, sign, install and launch on the plugged-in iPhone (unlock it)
+ios/scripts/mac.sh device   # build, sign, install and launch on the iPhone (cable, else paired over Wi-Fi; unlock it)
 ios/scripts/mac.sh test     # SingItCore tests on macOS
 ios/scripts/mac.sh ssh CMD  # run CMD in the Mac's copy of ios/
 ```
@@ -75,7 +75,9 @@ synthetic tests really run there; run the full suite locally with the hymns pres
 Screenshots in `docs/screenshots` come from `ios/scripts/screenshots.sh`: a debug-only
 screenshot mode (`ios/SingIt/App/ScreenshotMode.swift`, launch argument `-screenshot
 setup|singing|summary|range|demo`) that opens a screen with the test hymn from the package's
-test fixtures (bundled into the app) and a simulated singer. `demo` sings in real time
+test fixtures (bundled into the app) and a simulated singer, `HumanSinger`, whose misses,
+scoops, wander, gaps and lateness were measured from a real practice recording (it scores
+about what that singer did, ~45%). `demo` sings in real time
 (`SingController.runDemo`) and the script records it to `build/screenshots/demo.mp4`, the
 source of `docs/demo.gif` (ffmpeg command in the README). Only the made-up test hymn
 may appear in anything published. `tools/make_icon.py` draws the app icon.
@@ -187,14 +189,29 @@ may appear in anything published. `tools/make_icon.py` draws the app icon.
 - `tools/beatmap.py` aligns a recording to the hymn: chroma of the audio against chroma of
   all four parts in playing order (the ⌜ ⌝ introduction, then every pass of the form), by
   slope-constrained DTW (local tempo within 0.5–2×; free DTW races through one verse and
-  dawdles in the next, because every verse has the same music), then smoothed by local
-  line fits (inside a held chord all moments look alike). `hymns/beatmaps/NNNN-slug.json`
-  stores `[seconds, performance beat]` every eighth of a beat.
+  dawdles in the next, because every verse has the same music). Three more things matter:
+  - Breaths: between passages the organist holds the last chord or stops briefly. The
+    score has a breath frame there that matches quiet audio (loudness from short windows:
+    the pause can be a quarter second), the path may wait on it or on the last chord (for
+    a small cost per frame, or it sat on 136's introduction for 17 s), and sounding notes
+    are penalised on near-silence (6's verses end on a D chord dying away, and the next
+    verse opens on D).
+  - Onsets: a score note start costs extra where the audio has no attack (spectral flux).
+    Chroma alone can't place beats inside one chord: 27's verse opens on repeated tonic
+    notes, and was matched a second early at double speed.
+  - Smoothing is only half a beat and never crosses a breath. The old ±6-beat line fits
+    spread every breath over the neighbouring beats, so each verse started 0.3–2.4 s
+    before the music did ("the app scrolls before the music gets there").
+  Frame times are their analysis window's centre. `hymns/beatmaps/NNNN-slug.json` stores
+  `[seconds, performance beat]` every eighth of a beat.
 - Check a new map: its average tempo should sit near the hymn's marked range, and the
   printed verse count should give the lowest `alignmentCost` (all 18 recordings play
-  exactly the printed verses, some at the slow end of the marked tempo). Aligning the
-  choir version of the same recording independently agreed to within 0.46 s for 90% of
-  beats.
+  exactly the printed verses, some at the slow end of the marked tempo). Where the music
+  restarts after a silence, the pass start should be within ~0.1 s (all 107 in the 18
+  maps are within 0.14 s), and most mapped note starts should land within 80 ms of an
+  audio attack (60% overall, up from 25% before breaths and onsets). A singer's own
+  recording is independent evidence: with a good map their lag behind it is steady
+  (0.12–0.24 s through a whole practice take of 27).
 - Ground truth for a real practice recording: find the recording's offset in the MP3 by
   sliding chroma correlation (the singer's melody shares the accompaniment's note names),
   then read beats from the beat map. On the first real practice recording, following was
@@ -258,7 +275,9 @@ may appear in anything published. `tools/make_icon.py` draws the app icon.
     it was sung high/low, wandering (mean |cents| ≫ |mean cents|), or in the wrong octave,
     plus the printed line to practise. The app loops that line with the accompaniment.
   - `SingingSession` ties audio → pitch → follower → `Scorekeeper`, and produces
-    `LiveState`, the pitch trace and the `SessionSummary`. With part = nil (Auto) it runs
+    `LiveState`, the pitch trace and the `SessionSummary`. The hint and the tuning meter
+    both use `LiveState.meterCents` (the note's last 0.3 s averaged); a meter showing the
+    latest frame contradicted the hint during every scoop. With part = nil (Auto) it runs
     four followers and settles on the part with clearly the highest log evidence.
     `process(_:)` runs on the audio queue; the other members are read from the UI (NSLock).
 - Tests synthesise singers from the golden hymn JSON, so pipeline changes are exercised
@@ -273,7 +292,8 @@ may appear in anything published. `tools/make_icon.py` draws the app icon.
   <id> --domain-type appDataContainer --domain-identifier <bundle id> --source
   Documents/Recordings --destination DIR` into `recordings/` (gitignored), decode with
   `ffmpeg -i X.m4a -ac 1 -ar 16000 -f f32le X.f32`, and replay with the `singit-replay`
-  executable (`swift build -c release --product singit-replay`; `--onsets`, `--alone`).
+  executable (`swift build -c release --product singit-replay`; `--onsets`, `--alone`;
+  `singit-replay X.f32 --pitches` just prints each frame's pitch, for measuring a singer).
   There is no ground truth for where the singer was, so judge by plausibility.
 - App layer (`ios/SingIt`): `AudioCapture` (AVAudioEngine tap → 16 kHz analysis samples
   plus a full-rate AAC recording in Documents/Recordings, alongside a JSON summary; in

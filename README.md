@@ -97,7 +97,8 @@ own use:
        --url <the recording's address> -o hymns/beatmaps/0002-the-spirit-of-god.json
    ```
 
-   `--strict` fails on any warning. The converter has been checked against a development
+   `--strict` fails on any warning. If you made beat maps with an older `beatmap.py`, run
+   it again: older maps started each verse up to 2 s before the music did. The converter has been checked against a development
    set of 20 hymns from the 1985 hymnbook; others may need fixes (`--dump` and `--overlay`
    help). Every hymn in `hymns/json` is built into the app.
 

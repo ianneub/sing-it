@@ -5,8 +5,7 @@ import SwiftUI
 /// Past sessions: listen back, share, or delete.
 struct RecordingsView: View {
     @State private var recordings: [Recording] = []
-    @State private var player: AVAudioPlayer?
-    @State private var playing: Recording?
+    @State private var playback = Playback()
     @State private var summary: SessionSummary?
 
     var body: some View {
@@ -14,9 +13,9 @@ struct RecordingsView: View {
             ForEach(recordings) { recording in
                 HStack {
                     Button {
-                        toggle(recording)
+                        playback.toggle(recording)
                     } label: {
-                        Image(systemName: playing == recording ? "stop.circle.fill" : "play.circle.fill")
+                        Image(systemName: playback.playing == recording ? "stop.circle.fill" : "play.circle.fill")
                             .font(.title)
                     }
                     .buttonStyle(.borderless)
@@ -47,7 +46,10 @@ struct RecordingsView: View {
                 }
             }
             .onDelete { offsets in
-                for i in offsets { RecordingStore.delete(recordings[i]) }
+                for i in offsets {
+                    if playback.playing == recordings[i] { playback.stop() }
+                    RecordingStore.delete(recordings[i])
+                }
                 recordings.remove(atOffsets: offsets)
             }
         }
@@ -59,24 +61,46 @@ struct RecordingsView: View {
         }
         .navigationTitle("Recordings")
         .onAppear { recordings = RecordingStore.all() }
-        .onDisappear { player?.stop() }
+        .onDisappear { playback.stop() }
         .sheet(item: $summary) { SummaryView(summary: $0) }
     }
 
-    private func toggle(_ recording: Recording) {
-        if playing == recording {
-            player?.stop()
-            playing = nil
-            return
-        }
+}
+
+/// Plays one recording at a time: starting another stops the one playing.
+@MainActor
+@Observable
+final class Playback: NSObject, AVAudioPlayerDelegate {
+    private(set) var playing: Recording?
+    private var player: AVAudioPlayer?
+
+    func toggle(_ recording: Recording) {
+        let wasPlaying = playing
+        stop()
+        guard wasPlaying != recording else { return }
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback)
             try AVAudioSession.sharedInstance().setActive(true)
-            player = try AVAudioPlayer(contentsOf: recording.audio)
-            player?.play()
+            let player = try AVAudioPlayer(contentsOf: recording.audio)
+            player.delegate = self
+            player.play()
+            self.player = player
             playing = recording
         } catch {
             playing = nil
+        }
+    }
+
+    func stop() {
+        player?.stop()
+        player = nil
+        playing = nil
+    }
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        let finished = ObjectIdentifier(player)
+        Task { @MainActor in
+            if let current = self.player, ObjectIdentifier(current) == finished { self.stop() }
         }
     }
 }

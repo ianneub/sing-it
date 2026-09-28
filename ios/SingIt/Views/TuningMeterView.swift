@@ -16,8 +16,8 @@ struct TuningMeterView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(hintColor)
                 Spacer()
-                if let c = live.comparison, live.hint != .rest, live.hint != .waiting {
-                    Text("\(c.cents >= 0 ? "+" : "")\(Int(c.cents.rounded()))¢")
+                if let cents = live.meterCents, live.hint != .rest, live.hint != .waiting {
+                    Text("\(cents >= 0 ? "+" : "")\(Int(cents.rounded()))¢")
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -38,8 +38,8 @@ struct TuningMeterView: View {
                     .frame(width: zone * 2)
                     .offset(x: w / 2 - zone)
                 Rectangle().fill(.secondary).frame(width: 1).offset(x: w / 2)
-                if let c = live.comparison, live.started, live.hint != .rest {
-                    let clamped = min(max(c.cents, -span), span)
+                if let cents = live.meterCents, live.started, live.hint != .rest {
+                    let clamped = min(max(cents, -span), span)
                     // Only the dot glides; animating the whole view cross-faded the hint text.
                     Circle()
                         .fill(hintColor)
